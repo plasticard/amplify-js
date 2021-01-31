@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { Auth, I18n, Logger } from 'aws-amplify';
 import AuthPiece, { IAuthPieceProps, IAuthPieceState } from './AuthPiece';
 import {
@@ -34,6 +34,7 @@ interface ISignInProps extends IAuthPieceProps {}
 
 interface ISignInState extends IAuthPieceState {
 	password?: string;
+  isPending?: boolean | null;
 }
 
 export default class SignIn extends AuthPiece<ISignInProps, ISignInState> {
@@ -45,6 +46,7 @@ export default class SignIn extends AuthPiece<ISignInProps, ISignInState> {
 			username: null,
 			password: null,
 			error: null,
+      isPending: false,
 		};
 
 		this.checkContact = this.checkContact.bind(this);
@@ -55,8 +57,10 @@ export default class SignIn extends AuthPiece<ISignInProps, ISignInState> {
 		const username = this.getUsernameFromInput() || '';
 		const { password } = this.state;
 		logger.debug('Sign In for ' + username);
+    this.setState({ isPending: true });
 		return Auth.signIn(username, password)
-			.then(user => {
+      .then((user) => {
+        this.setState({ isPending: false });
 				logger.debug(user);
 				const requireMFA = user.Session !== null;
 				if (user.challengeName === 'SMS_MFA') {
@@ -68,7 +72,8 @@ export default class SignIn extends AuthPiece<ISignInProps, ISignInState> {
 					this.checkContact(user);
 				}
 			})
-			.catch(err => {
+      .catch((err) => {
+        this.setState({ isPending: false });
 				if (err.code === 'PasswordResetRequiredException') {
 					logger.debug('the user requires a new password');
 					this.changeState('forgotPassword', username);
@@ -100,15 +105,50 @@ export default class SignIn extends AuthPiece<ISignInProps, ISignInState> {
 								required={true}
 								{...setTestId(TEST_ID.AUTH.PASSWORD_INPUT)}
 							/>
-							<AmplifyButton
-								text={I18n.get('Sign In').toUpperCase()}
-								theme={theme}
-								onPress={this.signIn}
-								disabled={
-									!!(!this.getUsernameFromInput() && this.state.password)
-								}
+
+              {this.state.isPending && (
+                <View
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <AmplifyButton
+                    style={{
+                      flex: 1,
+                      alignSelf: 'center',
+                      width: '100%',
+                    }}
+                    text={I18n.get('Sign In').toUpperCase()}
+                    theme={theme}
+                    onPress={this.signIn}
+                    disabled={true}
+                    testID={TEST_ID.AUTH.SIGN_IN_BUTTON}
+                  />
+                  <ActivityIndicator
+                    style={{
+                      flex: 1,
+                      left: 50,
+                      position: 'absolute',
+                      alignSelf: 'center',
+                      width: '100%',
+                    }}
+                  />
+                </View>
+              )}
+              {!this.state.isPending && (
+                <AmplifyButton
+                  text={I18n.get('Sign In').toUpperCase()}
+                  theme={theme}
+                  onPress={this.signIn}
+                  disabled={
+                    !(!!this.getUsernameFromInput() && !!this.state.password) ||
+                    this.state.isPending
+                  }
 								{...setTestId(TEST_ID.AUTH.SIGN_IN_BUTTON)}
-							/>
+                />
+              )}
 						</View>
 						<View style={theme.sectionFooter}>
 							<LinkCell

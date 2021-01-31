@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, ActivityIndicator } from 'react-native';
 import { Auth, I18n, Logger } from 'aws-amplify';
 import {
 	FormField,
@@ -50,6 +50,7 @@ interface ISignUpProps extends IAuthPieceProps {
 
 interface ISignUpState extends IAuthPieceState {
 	password?: string | null;
+  isButtonEnabled?: boolean | null;
 }
 
 export default class SignUp extends AuthPiece<ISignUpProps, ISignUpState> {
@@ -61,7 +62,7 @@ export default class SignUp extends AuthPiece<ISignUpProps, ISignUpState> {
 		super(props);
 
 		this._validAuthStates = ['signUp'];
-		this.state = {};
+    this.state = { isButtonEnabled: true };
 		this.signUp = this.signUp.bind(this);
 		this.sortFields = this.sortFields.bind(this);
 		this.getDefaultDialCode = this.getDefaultDialCode.bind(this);
@@ -199,7 +200,11 @@ export default class SignUp extends AuthPiece<ISignUpProps, ISignUpState> {
 		const inputVals = Object.values(this.state);
 
 		inputKeys.forEach((key, index) => {
-			if (!['username', 'password', 'checkedValue'].includes(key)) {
+      if (
+        !['username', 'password', 'checkedValue', 'isButtonEnabled'].includes(
+          key
+        )
+      ) {
 				if (
 					key !== 'phone_line_number' &&
 					key !== 'dial_code' &&
@@ -230,12 +235,17 @@ export default class SignUp extends AuthPiece<ISignUpProps, ISignUpState> {
 		}
 
 		logger.debug('Signing up with', signup_info);
+    this.setState({ isButtonEnabled: false });
 		Auth.signUp(signup_info)
 			.then(data => {
 				// @ts-ignore
 				this.changeState('confirmSignUp', data.user.username);
+        this.setState({ isButtonEnabled: true });
 			})
-			.catch(err => this.error(err));
+      .catch((err) => {
+        this.setState({ isButtonEnabled: true });
+        this.error(err);
+      });
 	}
 
 	showComponent(theme) {
@@ -285,22 +295,56 @@ export default class SignUp extends AuthPiece<ISignUpProps, ISignUpState> {
 								/>
 							);
 						})}
-						<AmplifyButton
-							text={I18n.get('Sign Up').toUpperCase()}
-							theme={theme}
-							onPress={this.signUp}
-							disabled={!this.isValid()}
-							{...setTestId(TEST_ID.AUTH.SIGN_UP_BUTTON)}
-						/>
+
+            {!this.state.isButtonEnabled && (
+              <View
+                style={{
+                  flex: 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <AmplifyButton
+                  style={{
+                    flex: 1,
+                    alignSelf: 'center',
+                    width: '100%',
+                  }}
+                  text={I18n.get('Processing').toUpperCase()}
+                  theme={theme}
+                  onPress={this.signUp}
+                  disabled={true}
+                  testID={TEST_ID.AUTH.SIGN_UP_BUTTON}
+                ></AmplifyButton>
+                <ActivityIndicator
+                  style={{
+                    flex: 1,
+                    left: 80,
+                    position: 'absolute',
+                    alignSelf: 'center',
+                    width: '100%',
+                  }}
+                />
+              </View>
+            )}
+            {this.state.isButtonEnabled && (
+              <AmplifyButton
+                text={I18n.get('Sign Up').toUpperCase()}
+                theme={theme}
+                onPress={this.signUp}
+                disabled={!this.isValid() || !this.state.isButtonEnabled}
+                {...setTestId(TEST_ID.AUTH.SIGN_UP_BUTTON)}
+              />
+            )}
 					</View>
 					<View style={theme.sectionFooter}>
-						<LinkCell
+            {/* <LinkCell
 							theme={theme}
 							onPress={() => this.changeState('confirmSignUp')}
 							testID={TEST_ID.AUTH.CONFIRM_A_CODE_BUTTON}
 						>
 							{I18n.get('Confirm a Code')}
-						</LinkCell>
+						</LinkCell> */}
 						<LinkCell
 							theme={theme}
 							onPress={() => this.changeState('signIn')}
